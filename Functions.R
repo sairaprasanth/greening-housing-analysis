@@ -103,18 +103,25 @@ get_mmsa <- function(brfss) {
 }
 
 get_ndvi_summary <- function(mmsa) {
+
+  if (!dir.exists(here("NDVI"))) {
+    dir.create(here("NDVI"))
+  }
+  
+  # unzip NDVI folder
+  unzip(here("NDVI.zip"), exdir = here("NDVI"))
   
   # load monthly NDVI for 2011-2021
-  ndvi_files <- list.files(path = here("data", "NDVI"))
+  ndvi_files <- list.files(path = here("NDVI"))
   
   # create raster for each NDVI file
-  ndvi <- purrr::map(ndvi_files, ~ rast(here("data", "NDVI", .x)))
+  ndvi <- purrr::map(ndvi_files, ~ rast(here("NDVI", .x)))
 
   # unzip GPW data
-  unzip(here("data", "gpw-v4-population-count-rev11_2020_30_sec_tif.zip"), files = "gpw_v4_population_count_rev11_2020_30_sec.tif", exdir = here("data"))
+  unzip(here("gpw-v4-population-count-rev11_2020_30_sec_tif.zip"), files = "gpw_v4_population_count_rev11_2020_30_sec.tif", exdir = here())
   
   # load and reproject Gridded Population of the World for population weighting
-  gpw <- rast(here("data", "gpw_v4_population_count_rev11_2020_30_sec.tif")) %>%
+  gpw <- rast(here("gpw_v4_population_count_rev11_2020_30_sec.tif")) %>%
     # change CRS
     project(crs(ndvi[[1]])) %>%
     # match extent
