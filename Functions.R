@@ -68,6 +68,12 @@ get_brfss <- function() {
   # brfss_17 <- get_brfss_from_html(year = 17, filename = "VarLayout_Table_17.html")
   # brfss_18 <- get_brfss_1(year = 18)
   # brfss_19 <- get_brfss_1(year = 19)
+
+  if (!dir.exists(here("data_clean"))) {
+    dir.create(here("data_clean"))
+  }
+  
+  unzip(here("data_clean.zip"), exdir = here("data_clean"))
   
   # read in cleaned BRFSS CSV files for ease of loading
   # brfss_11 <- read.csv(here("data_clean", "brfss_11.csv")) # 2011 data not written/read in correctly
