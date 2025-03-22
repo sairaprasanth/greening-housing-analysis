@@ -18,4 +18,26 @@ Below are instructions to reproduce the datasets used in this analysis.
 4.  You may be prompted to log in with your NASA Earthdata account. Once you log in, the download will begin. The downloaded .zip folder should be named: "gpw-v4-population-count-rev11_2020_30_sec_tif"; place this in the "data" folder.
 
 The "data" folder contains monthly 1-km x 1-km normalized difference vegetation index (NDVI) in each year from 2011 through 2019, retrieved from NASA's Terra Moderate Resolution Imaging Spectroradiometer (MODIS) Vegetation Indices Monthly (MOD13A3) Version 6.1 product (available here: https://doi.org/10.5067/MODIS/MOD13A3.061). There are 109 total GeoTIFF files containing NDVI data in this folder (1 for each month in 2011-2019).
-  
+
+The Behavioral Risk Factor Surveillance System Selected Metropolitan/Micropolitan Area Risk Trends (BRFSS SMART) 2011 and 2019 datasets used in this analysis will be retrieved via URL when running the code.
+
+# Running the analysis
+Open the `_targets.R` and `Functions.R` scripts. Then, paste your Census API key between the quotation marks in line 14 of `_targets.R`, as indicated in the script.
+
+Then, in the R console, run the following lines (also located at the beginning of `_targets.R`) to load the packages required to define and execute the `targets` pipeline:
+```
+library(targets)
+library(tarchetypes)
+library(future)
+```
+Finally, to execute the entire pipeline, run `tar_make()` in the R console. You can cancel the execution at any point by pressing the escape key.
+
+# Viewing results
+
+Each table and figure has a corresponding "target," which can be read using `tar_read()` and loaded into your R environment using `tar_load()`. For example, Table 1, Table 2, and Figure A1 can be viewed in R by running the following lines:
+```
+tar_read(table_1)
+tar_read(table_2)
+tar_read(figure_A1)
+```
+Additionally, after running the pipeline, all main or supplementary figures and tables will be saved in the "output" folder created in your local repository.
