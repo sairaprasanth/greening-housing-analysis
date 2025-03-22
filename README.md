@@ -19,7 +19,7 @@ Below are instructions to reproduce the datasets used in this analysis.
 
 The "data" folder contains monthly 1-km x 1-km normalized difference vegetation index (NDVI) in each year from 2011 through 2019, retrieved from NASA's Terra Moderate Resolution Imaging Spectroradiometer (MODIS) Vegetation Indices Monthly (MOD13A3) Version 6.1 product (available here: https://doi.org/10.5067/MODIS/MOD13A3.061). There are 109 total GeoTIFF files containing NDVI data in this folder (1 for each month in 2011-2019).
 
-The Behavioral Risk Factor Surveillance System Selected Metropolitan/Micropolitan Area Risk Trends (BRFSS SMART) 2011 and 2019 datasets used in this analysis will be retrieved via URL when running the code.
+The Behavioral Risk Factor Surveillance System Selected Metropolitan/Micropolitan Area Risk Trends (BRFSS SMART) 2011 and 2019 datasets used in this analysis will be retrieved via URL when running the code (data and documentation are available here: https://www.cdc.gov/brfss/smart/Smart_data.htm).
 
 # Running the analysis
 Open the `_targets.R` and `Functions.R` scripts. Then, paste your Census API key between the quotation marks in line 14 of `_targets.R`, as indicated in the script.
