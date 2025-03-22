@@ -17,9 +17,9 @@ Below are instructions to reproduce the datasets used in this analysis.
 
 4.  You may be prompted to log in with your NASA Earthdata account. Once you log in, the download will begin. The downloaded .zip folder should be named: "gpw-v4-population-count-rev11_2020_30_sec_tif"; place this in the "data" folder.
 
-The "data" folder contains monthly 1-km x 1-km normalized difference vegetation index (NDVI) in each year from 2011 through 2019, retrieved from NASA's Terra Moderate Resolution Imaging Spectroradiometer (MODIS) Vegetation Indices Monthly (MOD13A3) Version 6.1 product (available here: https://doi.org/10.5067/MODIS/MOD13A3.061). There are 109 total GeoTIFF files containing NDVI data in this folder (1 for each month in 2011-2019).
+The "data" folder contains monthly 1-km x 1-km normalized difference vegetation index (NDVI) in each year from 2011 through 2019, retrieved from NASA's Terra Moderate Resolution Imaging Spectroradiometer (MODIS) Vegetation Indices Monthly (MOD13A3) Version 6.1 product (available here: https://doi.org/10.5067/MODIS/MOD13A3.061). There are 109 total GeoTIFF files containing NDVI data in this folder (1 for each month in 2011-2019). These do not need to be manually downloaded.
 
-The Behavioral Risk Factor Surveillance System Selected Metropolitan/Micropolitan Area Risk Trends (BRFSS SMART) 2011 and 2019 datasets used in this analysis will be retrieved via URL when running the code (data and documentation are available here: https://www.cdc.gov/brfss/smart/Smart_data.htm).
+The Behavioral Risk Factor Surveillance System Selected Metropolitan/Micropolitan Area Risk Trends (BRFSS SMART) 2011 and 2019 datasets used in this analysis will be retrieved via URL when running the code (data and documentation are available here: https://www.cdc.gov/brfss/smart/Smart_data.htm). These do not need to be manually downloaded.
 
 # Running the analysis
 Open the `_targets.R` and `Functions.R` scripts. Then, paste your Census API key between the quotation marks in line 14 of `_targets.R`, as indicated in the script.
