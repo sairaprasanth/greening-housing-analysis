@@ -34,7 +34,7 @@ Finally, to execute the entire pipeline, run `tar_make()` in the R console. You 
 
 # Viewing results
 
-Each table and figure has a corresponding "target," which can be read using `tar_read()` and loaded into your R environment using `tar_load()`. For example, Table 1, Table 2, and Figure A1 can be viewed in R by running the following lines:
+Each table and figure has a corresponding "target," which can be read using `tar_read()` and loaded into your R environment using `tar_load()`. For example, Table 1, Table 2, and Figure S1 can be viewed in R by running the following lines:
 ```
 tar_read(table_1)
 tar_read(table_2)
