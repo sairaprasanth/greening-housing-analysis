@@ -5,9 +5,6 @@ get_brfss <- function() {
   if(!file.exists(here("data", "main_MMSA2011.xpt"))){download.file("https://www.cdc.gov/brfss/smart/2011/mmsa11xpt.zip", destfile = here("data", "MMSA2011.xpt"))}
   if(!file.exists(here("data", "main_MMSA2019.xpt"))){download.file("https://www.cdc.gov/brfss/annual_data/2019/files/MMSA2019_XPT.zip", destfile = here("data", "MMSA2019.xpt"))}
   
-  # download BRFSS SMART dataset, 2012 for sensitivity analysis - taken out
-  if(!file.exists(here("data", "MMSA2012.xpt"))){download.file("https://www.cdc.gov/brfss/smart/2012/MMSA12XPT.zip", destfile = here("data", "MMSA2012.xpt"))}
-
   # list files to be unzipped
   mmsa_filenames <- list.files(here("data"), pattern = "MMSA", full.names = TRUE)
   
@@ -50,7 +47,7 @@ get_mmsa <- function(brfss) {
   
   sample_names <- unique(brfss[[1]][c("MMSA", "MMSANAME")]) %>%
     # join 2011 BRFSS MMSAs to 2019 BRFSS MMSAs by MMSA ID
-    inner_join(unique(brfss[[3]][c("MMSA", "MMSANAME")]), by = "MMSA") %>%
+    inner_join(unique(brfss[[2]][c("MMSA", "MMSANAME")]), by = "MMSA") %>%
     # filter for contiguous US
     filter(!str_detect(MMSANAME.y, ", HI"), !str_detect(MMSANAME.y, ", PR"), !str_detect(MMSANAME.y, ", AK")) %>% 
     # clean names if extra comma
@@ -211,7 +208,7 @@ get_full_data_strat <- function(brfss, ndvi_summary, mmsa) {
     mutate(MMSANAME_pre = sub(", Metro", " Metro", MMSANAME_pre), 
            MMSANAME_pre = sub(", Micro", " Micro", MMSANAME_pre))
   
-  svy_post <- brfss[[3]] %>%
+  svy_post <- brfss[[2]] %>%
     # create survey object with weights
     as_survey(strata = STSTR, weights = MMSAWT) %>% 
     # summarize counts stratified by housing tenure
@@ -254,7 +251,7 @@ get_mmsa_to_remove <- function(brfss) {
   
   sample_names <- unique(brfss[[1]][c("MMSA", "MMSANAME")]) %>%
     # join 2011 BRFSS MMSAs to 2019 BRFSS MMSAs by MMSA ID
-    inner_join(unique(brfss[[3]][c("MMSA", "MMSANAME")]), by = "MMSA") %>%
+    inner_join(unique(brfss[[2]][c("MMSA", "MMSANAME")]), by = "MMSA") %>%
     # filter for contiguous US
     filter(!str_detect(MMSANAME.y, ", HI"), !str_detect(MMSANAME.y, ", PR"), !str_detect(MMSANAME.y, ", AK")) %>% 
     # clean names to match delineation file
@@ -311,29 +308,33 @@ get_mmsa_to_remove <- function(brfss) {
     # select vars
     dplyr::select(Title, mmsa_pop = estimate)
   
+  # get population counts by county by year
+  co_pop_12 <- get_acs(geography = "county", variables = "B01003_001", year = 2012, survey = "acs5")
+  co_pop_17 <- get_acs(geography = "county", variables = "B01003_001", year = 2017, survey = "acs5")
+  
   # # get metro division names
-  # sample_div <- mmsa %>% 
-  #   filter(str_detect(MMSANAME, "Division")) %>% 
+  # sample_div <- sample_names %>%
+  #   filter(str_detect(MMSANAME, "Division")) %>%
   #   # clean name
-  #   mutate(name = sub(" Metropolitan Division", "", MMSANAME)) %>% 
+  #   mutate(name = sub(" Metropolitan Division", "", MMSANAME)) %>%
   #   mutate(name = if_else(name == "Nassau-Suffolk, NY", "Nassau County-Suffolk County, NY", name))
   # 
   # # get metro division history and filter for sample division names
-  # div_13 <- read_excel(here("data", "feb_2013_cbsa.xls"), skip = 2) %>% 
-  #   filter(`Metropolitan Division Title` %in% sample_div$name) %>% 
+  # div_13 <- read_excel(here("data", "feb_2013_cbsa.xls"), skip = 2) %>%
+  #   filter(`Metropolitan Division Title` %in% sample_div$name) %>%
   #   dplyr::select(`Metropolitan Division Title`, `County/County Equivalent`, `FIPS State Code`, `FIPS County Code`)
-  # div_15 <- read_excel(here("data", "jul_2015_cbsa.xls"), skip = 2) %>% 
-  #   filter(`Metropolitan Division Title` %in% sample_div$name) %>% 
+  # div_15 <- read_excel(here("data", "jul_2015_cbsa.xls"), skip = 2) %>%
+  #   filter(`Metropolitan Division Title` %in% sample_div$name) %>%
   #   dplyr::select(`Metropolitan Division Title`, `County/County Equivalent`, `FIPS State Code`, `FIPS County Code`)
-  # div_17 <- read_excel(here("data", "aug_2017_cbsa.xls"), skip = 2) %>% 
-  #   filter(`Metropolitan Division Title` %in% sample_div$name) %>% 
+  # div_17 <- read_excel(here("data", "aug_2017_cbsa.xls"), skip = 2) %>%
+  #   filter(`Metropolitan Division Title` %in% sample_div$name) %>%
   #   dplyr::select(`Metropolitan Division Title`, `County/County Equivalent`, `FIPS State Code`, `FIPS County Code`)
-  # div_18_apr <- read_excel(here("data", "apr_2018_cbsa.xls"), skip = 2) %>% 
-  #   filter(`Metropolitan Division Title` %in% sample_div$name) %>% 
+  # div_18_apr <- read_excel(here("data", "apr_2018_cbsa.xls"), skip = 2) %>%
+  #   filter(`Metropolitan Division Title` %in% sample_div$name) %>%
   #   dplyr::select(`Metropolitan Division Title`, `County/County Equivalent`, `FIPS State Code`, `FIPS County Code`)
-  # div_18_sep <- read_excel(here("data", "list1_Sep_2018.xls"), skip = 2) %>% 
-  #   filter(`Metropolitan Division Title` %in% sample_div$name | `Metropolitan Division Title` %in% c("Seattle-Bellevue-Kent, WA", "Fort Worth-Arlington-Grapevine, TX")) %>% 
-  #   dplyr::select(`Metropolitan Division Title`, `County/County Equivalent`, `FIPS State Code`, `FIPS County Code`) %>% 
+  # div_18_sep <- read_excel(here("data", "list1_Sep_2018.xls"), skip = 2) %>%
+  #   filter(`Metropolitan Division Title` %in% sample_div$name | `Metropolitan Division Title` %in% c("Seattle-Bellevue-Kent, WA", "Fort Worth-Arlington-Grapevine, TX")) %>%
+  #   dplyr::select(`Metropolitan Division Title`, `County/County Equivalent`, `FIPS State Code`, `FIPS County Code`) %>%
   #   # rename divisions
   #   mutate(`Metropolitan Division Title` = case_match(`Metropolitan Division Title`,
   #                                                     "Seattle-Bellevue-Kent, WA" ~ "Seattle-Bellevue-Everett, WA",
@@ -341,31 +342,27 @@ get_mmsa_to_remove <- function(brfss) {
   #                                                     .default = `Metropolitan Division Title`))
   # 
   # # check if data frames identical
-  # # identical(div_13, div_15)
-  # # identical(div_13, div_17)
-  # # identical(div_13, div_18_apr)
-  # # identical(div_13, div_18_sep) # not identical
-  
-  # get population counts by county by year
-  co_pop_12 <- get_acs(geography = "county", variables = "B01003_001", year = 2012, survey = "acs5")
-  co_pop_17 <- get_acs(geography = "county", variables = "B01003_001", year = 2017, survey = "acs5")
-
-  # check_divs <- div_13 %>% 
-  #   full_join(div_18_sep, by = c("FIPS State Code", "FIPS County Code")) %>% 
+  # identical(div_13, div_15) # identical
+  # identical(div_13, div_17) # identical
+  # identical(div_13, div_18_apr) # identical
+  # identical(div_13, div_18_sep) # not identical
+  # 
+  # check_divs <- div_13 %>%
+  #   full_join(div_18_sep, by = c("FIPS State Code", "FIPS County Code")) %>%
   #   # filter for counties present in one year and not other
-  #   filter(is.na(`Metropolitan Division Title.x`)|is.na(`Metropolitan Division Title.y`)) %>% 
-  #   mutate(GEOID = paste0(`FIPS State Code`, `FIPS County Code`)) %>% 
-  #   left_join(co_pop_17, by = "GEOID") %>% 
-  #   mutate(`Metropolitan Division Title` = coalesce(`Metropolitan Division Title.x`, `Metropolitan Division Title.y`))
-  #   
-  # div_eval <- div_18_apr %>% 
-  #   mutate(GEOID = paste0(`FIPS State Code`, `FIPS County Code`)) %>% 
+  #   filter(is.na(`Metropolitan Division Title.x`)|is.na(`Metropolitan Division Title.y`)) %>%
+  #   mutate(GEOID = paste0(`FIPS State Code`, `FIPS County Code`)) %>%
   #   left_join(co_pop_17, by = "GEOID") %>%
-  #   filter(`Metropolitan Division Title` %in% c(check_divs$`Metropolitan Division Title.x`, check_divs$`Metropolitan Division Title.y`)) %>% 
-  #   group_by(`Metropolitan Division Title`) %>% 
-  #   summarize(pop_total = sum(estimate)) %>% 
-  #   right_join(check_divs, by = "Metropolitan Division Title") %>% 
-  #   mutate(prop_change = estimate/pop_total) %>% 
+  #   mutate(`Metropolitan Division Title` = coalesce(`Metropolitan Division Title.x`, `Metropolitan Division Title.y`))
+  # 
+  # div_eval <- div_18_apr %>%
+  #   mutate(GEOID = paste0(`FIPS State Code`, `FIPS County Code`)) %>%
+  #   left_join(co_pop_17, by = "GEOID") %>%
+  #   filter(`Metropolitan Division Title` %in% c(check_divs$`Metropolitan Division Title.x`, check_divs$`Metropolitan Division Title.y`)) %>%
+  #   group_by(`Metropolitan Division Title`) %>%
+  #   summarize(pop_total = sum(estimate)) %>%
+  #   right_join(check_divs, by = "Metropolitan Division Title") %>%
+  #   mutate(prop_change = estimate/pop_total) %>%
   #   filter(prop_change >= 0.1) # 0 divisions to remove
     
   mmsa_eval <- mmsa_history %>% 
@@ -414,7 +411,7 @@ get_full_data_overall <- function(brfss, ndvi_summary, mmsa) {
     # specify year for inner join
     rename_with(.cols = c("MMSANAME", "mh20", "mh21"), ~ paste0(.x, "_pre"))
   
-  svy_post_overall <- brfss[[3]] %>%
+  svy_post_overall <- brfss[[2]] %>%
     # create survey object with weights
     as_survey(strata = STSTR, weights = MMSAWT) %>% 
     # summarize counts stratified by housing tenure
@@ -429,7 +426,7 @@ get_full_data_overall <- function(brfss, ndvi_summary, mmsa) {
   
   # rename start year NDVI column
   ndvi_summary_1 <- ndvi_summary %>% 
-    rename(ndvi_pre = 3)
+    rename(ndvi_pre = `2011`)
   
   # join datasets
   full_data_overall <- inner_join(svy_pre_overall, svy_post_overall, by = "MMSA") %>%
@@ -442,7 +439,7 @@ get_full_data_overall <- function(brfss, ndvi_summary, mmsa) {
     mutate(STUSPS = str_match(MMSANAME_pre, regex(", (.{2})"))[,2]) %>% 
     # join region
     left_join(regions, by = "STUSPS") %>%
-    # join NDVI to BRFSS counts for all sample MMSAs with Tigris polygons, lag 0 years
+    # join NDVI to BRFSS counts for all sample MMSAs
     inner_join(ndvi_summary_1[,c("MMSA", "ndvi_pre", "2019", "ndvi_sd")], by = "MMSA") %>%
     # join educational attainment
     left_join(mmsa, by = "MMSA") %>%
@@ -456,15 +453,11 @@ get_models <- function(full_data_strat, full_data_overall) {
   
   data_owner1 <- full_data_strat %>% 
     # filter for homeowner prevalence estimates
-    filter(owner == 1) #%>% 
-    # # join baseline overall mental distress prevalence by MMSA
-    # full_join(full_data_overall[,c("MMSA", "mh_prop_pre_overall")], by = "MMSA")
+    filter(owner == 1)
   
   data_owner0 <- full_data_strat %>% 
     # filter for non-homeowner prevalence estimates
-    filter(owner == 0) #%>% 
-    # # join baseline overall mental distress prevalence by MMSA
-    # full_join(full_data_overall[,c("MMSA", "mh_prop_pre_overall")], by = "MMSA")
+    filter(owner == 0)
   
   # build model - overall
   model_overall <- lm(diff_mh ~ diff_ndvi + ndvi_sd + ndvi_pre_x10 + mh_prop_pre + prop_coll_or_grad + REGION + REGION*diff_ndvi + prop_poverty + prop_nhw, data = full_data_overall)
@@ -493,15 +486,11 @@ get_models_s2 <- function(full_data_strat, full_data_overall, mmsa_to_remove) {
 
   data_owner1 <- full_data_strat_s2 %>% 
     # filter for homeowner prevalence estimates
-    filter(owner == 1) #%>% 
-    # # join baseline overall mental distress prevalence by MMSA
-    # full_join(full_data_overall_s2[,c("MMSA", "mh_prop_pre_overall")], by = "MMSA")
+    filter(owner == 1) 
   
   data_owner0 <- full_data_strat_s2 %>% 
     # filter for non-homeowner prevalence estimates
-    filter(owner == 0) #%>% 
-    # # join baseline overall mental distress prevalence by MMSA
-    # full_join(full_data_overall_s2[,c("MMSA", "mh_prop_pre_overall")], by = "MMSA")
+    filter(owner == 0)
   
   # build model - overall
   model_overall <- lm(diff_mh ~ diff_ndvi + ndvi_sd + ndvi_pre_x10 + mh_prop_pre + prop_coll_or_grad + REGION + REGION*diff_ndvi + prop_poverty + prop_nhw, data = full_data_overall_s2)
@@ -538,7 +527,7 @@ get_ndvi_summer <- function(mmsa) {
     crop(mmsa)
   
   # reproject NDVI raster to MMSA shapefile CRS
-  ndvi_proj <- lapply(ndvi, project, y = mmsa) %>% 
+  ndvi_proj <- lapply(ndvi, project, y = crs(mmsa)) %>% 
     # crop to match extent
     lapply(., crop, mmsa)
   
@@ -631,7 +620,7 @@ get_table_1 <- function(full_data_strat, full_data_overall) {
     full_join(overall_tbl, by = "**Characteristic**") %>% 
     # clean names
     rename("Measure" = "**Characteristic**", "Homeowner" = "**Homeowner**, N = 109",
-           "Non-homeowner" = "**Non-homeowner**, N = 109", "Overall (n = 109)" = "**N = 109**")
+           "Non-homeowner" = "**Non-homeowner**, N = 109", "Overall" = "**N = 109**")
   
   write.csv(table_1, here("output", "table_1.csv"))
   
@@ -662,7 +651,6 @@ get_table_1 <- function(full_data_strat, full_data_overall) {
   # save output
   write.csv(mental_distress_min_max_2011_2019, here("output", "mental_distress_min_max_2011_2019.csv"))
   
-  
   return(table_1)
 }
 
@@ -681,17 +669,6 @@ get_figure_A1 <- function(mmsa) {
     filter(!str_detect(NAME, regex(", (HI|PR|AK)"))) %>% 
     # indicator if area present in sample
     mutate(Sample = if_else(METDIVFP %in% mmsa$MMSA | CBSAFP %in% mmsa$MMSA, "Yes", "No"))
-  
-  # # combine
-  # map <- bind_rows(mmsa_map, division_map) %>%
-  #   # filter for conterminous US
-  #   filter(!str_detect(NAME, regex(", (HI|PR|AK)"))) %>%
-  #   # consolidate MMSA ID (CBSAFP for MMSAs or METDIVFP for metro divisions)
-  #   mutate(MMSA = if_else(str_detect(NAMELSAD, "Metro Division"), METDIVFP, CBSAFP))
-  # 
-  # map_all <- map %>%
-  #   # indicator if area present in sample
-  #   mutate(Sample = if_else(MMSA %in% mmsa$MMSA, "Yes", "No"))
   
   # color palette
   fills <- c("Yes" = "darkgreen", "No" = "grey", "None" = "white")
@@ -815,19 +792,76 @@ get_table_2 <- function(models, analysis) {
   
 }
 
-get_n_respondents <- function(brfss, mmsa, mmsa_2012) {
+get_missing_tbl <- function(brfss, mmsa) {
   
   respondents_2011_sample <- brfss[[1]] %>% 
     filter(MMSA %in% mmsa$MMSA) %>% 
     nrow()
   
-  respondents_2012_sample <- brfss[[2]] %>% 
-    filter(MMSA %in% mmsa_2012$MMSA) %>% 
-    nrow()
-  
-  respondents_2019_sample <- brfss[[3]] %>% 
+  respondents_2019_sample <- brfss[[2]] %>% 
     filter(MMSA %in% mmsa$MMSA) %>% 
     nrow()
+  
+  # missing values for mental distress
+  missing_mh_11 <- brfss[[1]] %>% 
+    filter(MMSA %in% mmsa$MMSA) %>% 
+    filter(is.na(MENTHLTH) | (MENTHLTH %in% c(77,99))) %>%
+    nrow()
+  
+  missing_mh_19 <- brfss[[2]] %>% 
+    filter(MMSA %in% mmsa$MMSA) %>% 
+    filter(is.na(MENTHLTH) | (MENTHLTH %in% c(77,99))) %>%
+    nrow()
+  
+  # missing values for housing tenure
+  missing_owner_11 <- brfss[[1]] %>% 
+    filter(MMSA %in% mmsa$MMSA) %>% 
+    filter(is.na(RENTHOM1) | (RENTHOM1 %in% c(7,9))) %>%
+    nrow()
+  
+  missing_owner_19 <- brfss[[2]] %>% 
+    filter(MMSA %in% mmsa$MMSA) %>% 
+    filter(is.na(RENTHOM1) | (RENTHOM1 %in% c(7,9))) %>%
+    nrow()
+  
+  # included in final sample for unstratified prevalence estimates
+  included_unstrat_11 <- brfss[[1]] %>% 
+    filter(MMSA %in% mmsa$MMSA) %>% 
+    filter(!is.na(MENTHLTH) & !(MENTHLTH %in% c(77,99))) %>%
+    nrow()
+  
+  included_unstrat_19 <- brfss[[2]] %>% 
+    filter(MMSA %in% mmsa$MMSA) %>% 
+    filter(!is.na(MENTHLTH) & !(MENTHLTH %in% c(77,99))) %>%
+    nrow()
+  
+  # included in final sample for subgroup prevalence estimates
+  included_strat_11 <- brfss[[1]] %>% 
+    filter(MMSA %in% mmsa$MMSA) %>% 
+    filter(!is.na(RENTHOM1) & !is.na(MENTHLTH) & !(RENTHOM1 %in% c(7,9)) & !(MENTHLTH %in% c(77,99))) %>%
+    nrow()
+  
+  included_strat_19 <- brfss[[2]] %>% 
+    filter(MMSA %in% mmsa$MMSA) %>% 
+    filter(!is.na(RENTHOM1) & !is.na(MENTHLTH) & !(RENTHOM1 %in% c(7,9)) & !(MENTHLTH %in% c(77,99))) %>%
+    nrow()
+  
+  # summary tibble
+  missing_tbl <- tibble(variable = c("respondents_2011_sample", "respondents_2019_sample",
+                                    "missing_mh_11", "missing_mh_19",
+                                    "missing_owner_11", "missing_owner_19",
+                                    "included_unstrat_11", "included_unstrat_19",
+                                    "included_strat_11", "included_strat_19"),
+                        value = c(respondents_2011_sample, respondents_2019_sample,
+                                  missing_mh_11, missing_mh_19,
+                                  missing_owner_11, missing_owner_19,
+                                  included_unstrat_11, included_unstrat_19,
+                                  included_strat_11, included_strat_19))
+  
+  # save output
+  write.csv(missing_tbl, here("output", "missing_or_included_values.csv"))
+  
+  return(missing_tbl)
   
 }
 
@@ -835,17 +869,11 @@ get_table_A1 <- function(full_data_strat, full_data_overall) {
   
   data_owner1 <- full_data_strat %>% 
     # filter for homeowner prevalence estimates
-    filter(owner == 1) #%>% 
-    # # join baseline overall mental distress prevalence by MMSA
-    # full_join(full_data_overall[,c("MMSA", "mh_prop_pre_overall")], by = "MMSA")
-  
+    filter(owner == 1)
   
   data_owner0 <- full_data_strat %>% 
     # filter for non-homeowner prevalence estimates
-    filter(owner == 0) #%>% 
-    # # join baseline overall mental distress prevalence by MMSA
-    # full_join(full_data_overall[,c("MMSA", "mh_prop_pre_overall")], by = "MMSA")
-  
+    filter(owner == 0)
   
   # initialize lists
   uni <- list()

@@ -1,4 +1,5 @@
 
+# run these 3 lines 
 library(targets)
 library(tarchetypes)
 library(future)
@@ -96,13 +97,13 @@ list(
   tar_target(table_2, {
     get_table_2(models = models, analysis = "main")
   }),
-  # tar_target(table_3, {
-  #   get_table_2(models = models_s1, analysis = "s1")
-  # }),
-  tar_target(table_4, {
-    get_table_2(models = models_s2, analysis = "s2")
+  tar_target(table_3, {
+    get_table_2(models = models_s2, analysis = "boundaries")
   }),
-  tar_target(table_5, {
-    get_table_2(models = models_summer, analysis = "s3")
+  tar_target(table_4, {
+    get_table_2(models = models_summer, analysis = "summer")
+  }),
+  tar_target(missing_tbl, {
+    get_missing_tbl(brfss = brfss, mmsa = mmsa)
   })
 )
