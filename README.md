@@ -20,15 +20,13 @@ Below are instructions to reproduce the datasets used in this analysis.
 
 6. Click export, ensure that "Download file" is selected and "CSV" is selected for the export format, and click download. The downloaded .csv file should be named: "500_Cities__Census_Tract-level_Data__GIS_Friendly_Format___2016_release_20250622.csv"; place this in the "data" folder.
 
-7. To download the corresponding shapefile for the 500 Cities, 2016 release, visit https://chronicdata.cdc.gov/500-Cities/500-Cities-Census-Tract-Boundaries/x7zy-2xmx and click "Download" under the "Download this Resource" section. The downloaded .zip folder should be named: "500Cities_Tracts_11082016"; place this in the "data" folder.
+7. To download the PLACES: Census Tract Data (GIS Friendly Format), 2021 release required for the tract-level secondary analysis, visit https://data.cdc.gov/500-Cities-Places/PLACES-Census-Tract-Data-GIS-Friendly-Format-2021-/mb5y-ytti
 
-8. To download the PLACES: Census Tract Data (GIS Friendly Format), 2021 release required for the tract-level secondary analysis, visit https://data.cdc.gov/500-Cities-Places/PLACES-Census-Tract-Data-GIS-Friendly-Format-2021-/mb5y-ytti
-
-9. Click export, ensure that "Download file" is selected and "CSV" is selected for the export format, and click download. The downloaded .csv file should be named: "PLACES__Census_Tract_Data__GIS_Friendly_Format___2021_release_20250622.csv"; place this in the "data" folder.
+8. Click export, ensure that "Download file" is selected and "CSV" is selected for the export format, and click download. The downloaded .csv file should be named: "PLACES__Census_Tract_Data__GIS_Friendly_Format___2021_release_20250622.csv"; place this in the "data" folder.
 
 The "data" folder contains the folder "NDVI" with monthly 1-km x 1-km normalized difference vegetation index (NDVI) in each year from 2011 through 2019, retrieved from NASA's Terra Moderate Resolution Imaging Spectroradiometer (MODIS) Vegetation Indices Monthly (MOD13A3) Version 6.1 product (available here: https://doi.org/10.5067/MODIS/MOD13A3.061). There are 109 total GeoTIFF files containing NDVI data in this folder (1 for each month in 2011-2019). The "data" folder also contains the files "feb_2013_cbsa.xls" and "metro_area_history_1950_2020.xls", which list U.S. core based statistical areas, metropolitan divisions, and component counties by year (downloads and more information are available here: https://www.census.gov/geographies/reference-files/time-series/demo/metro-micro/historical-delineation-files.html). These do not need to be manually downloaded.
 
-The Behavioral Risk Factor Surveillance System Selected Metropolitan/Micropolitan Area Risk Trends (BRFSS SMART) 2011 and 2019 datasets used in this analysis will be retrieved via URL when running the code (data and documentation are available here: https://www.cdc.gov/brfss/smart/Smart_data.htm). MMSA, county, and additional census tract shapefiles will be retrieved via API. These do not need to be manually downloaded.
+The Behavioral Risk Factor Surveillance System Selected Metropolitan/Micropolitan Area Risk Trends (BRFSS SMART) 2011 and 2019 datasets used in this analysis will be retrieved via URL when running the code (data and documentation are available here: https://www.cdc.gov/brfss/smart/Smart_data.htm). MMSA, county, and census tract shapefiles will be retrieved via API. These do not need to be manually downloaded.
 
 # Running the analysis
 Open the `_targets.R` and `Functions.R` scripts. Then, paste your Census API key between the quotation marks in line 14 of `_targets.R`, as indicated in the script.
