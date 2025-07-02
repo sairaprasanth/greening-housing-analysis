@@ -47,7 +47,7 @@ list(
     get_mmsa(brfss = brfss)
   }),
   tar_target(ndvi_summary, {
-    get_ndvi_summary(mmsa = mmsa)
+    get_ndvi_summary(sf = mmsa)
   }),
   tar_target(full_data_overall, {
     get_full_data_overall(brfss = brfss, ndvi_summary = ndvi_summary, mmsa = mmsa)
@@ -65,9 +65,9 @@ list(
   tar_target(models_s2, {
     get_models_s2(full_data_strat = full_data_strat, full_data_overall = full_data_overall, mmsa_to_remove = mmsa_to_remove)
   }),
-  # sensitivity analysis 2 - summer only
+  # sensitivity analysis - summertime NDVI
   tar_target(ndvi_summer, {
-    get_ndvi_summer(mmsa = mmsa)
+    get_ndvi_summer(sf = mmsa)
   }),
   tar_target(full_data_strat_summer, {
     get_full_data_strat(brfss = brfss, ndvi_summary = ndvi_summer, mmsa = mmsa)
@@ -78,30 +78,46 @@ list(
   tar_target(models_summer, {
     get_models(full_data_strat = full_data_strat_summer, full_data_overall = full_data_overall_summer)
   }),
+  # secondary analysis - tracts
+  tar_target(tracts_brfss, {
+    get_tracts_brfss()
+  }),
+  tar_target(ndvi_summary_tracts, {
+    get_ndvi_summary(sf = tracts_brfss)
+  }),
+  tar_target(model_tracts, {
+    get_model_tracts(tracts_brfss = tracts_brfss, ndvi_summary_tracts = ndvi_summary_tracts)
+  }),
   # tables and figures
   tar_target(table_1, {
-    get_table_1(full_data_strat = full_data_strat, full_data_overall = full_data_overall)
+    get_table_1(full_data_overall = full_data_overall)
   }),
-  tar_target(figure_A1, {
-    get_figure_A1(mmsa = mmsa)
+  tar_target(table_2, {
+    get_table_1(full_data_strat = full_data_strat)
   }),
-  tar_target(figure_A2, {
-    get_figure_A2(full_data_overall = full_data_overall)
+  tar_target(figure_S1, {
+    get_figure_S1(mmsa = mmsa)
   }),
-  tar_target(figure_A3, {
-    get_figure_A3(full_data_overall = full_data_overall)
+  tar_target(figure_S2, {
+    get_figure_S2(full_data_overall = full_data_overall)
+  }),
+  tar_target(figure_S3, {
+    get_figure_S3(full_data_overall = full_data_overall, full_data_strat = full_data_strat)
   }),
   tar_target(table_A1, {
     get_table_A1(full_data_overall = full_data_overall, full_data_strat = full_data_strat)
   }),
-  tar_target(table_2, {
-    get_table_2(models = models, analysis = "main")
-  }),
   tar_target(table_3, {
-    get_table_2(models = models_s2, analysis = "boundaries")
+    get_table_3(models = models, analysis = "main")
   }),
-  tar_target(table_4, {
-    get_table_2(models = models_summer, analysis = "summer")
+  tar_target(table_S2, {
+    get_table_3(models = models_s2, analysis = "boundaries")
+  }),
+  tar_target(table_S3, {
+    get_table_3(models = models_summer, analysis = "summer")
+  }),
+  tar_target(table_S4, {
+    get_table_S4(model_tracts = model_tracts)
   }),
   tar_target(missing_tbl, {
     get_missing_tbl(brfss = brfss, mmsa = mmsa)

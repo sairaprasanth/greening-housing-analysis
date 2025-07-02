@@ -29,7 +29,7 @@ get_brfss <- function() {
                         "   ", MMSANAME)) %>%
       mutate(NAME = sub(regex("(,|)\\s\\s+"), "", NAME), YEAR = as.numeric(year)) %>% 
       # dichotomize homeowner status
-      mutate(owner = case_when(RENTHOM1 == 1 ~ 1, RENTHOM1 == 2 ~ 0, RENTHOM1 == 3 ~ 0, RENTHOM1 %in% c(7,9,NA) ~ NA)) %>%
+      mutate(owner = case_when(RENTHOM1 == 1 ~ 1, RENTHOM1 == 2 ~ 0, RENTHOM1 %in% c(3,7,9,NA) ~ NA)) %>%
       # recode mh2, MMSA, stratum, and owner as factor variables
       mutate(mh2 = factor(mh2), owner = factor(owner), MMSA = factor(MMSA), STSTR = factor(STSTR))
     
@@ -62,14 +62,14 @@ get_mmsa <- function(brfss) {
     # filter for division names
     filter(str_detect(MMSANAME, "Division"))
   
-  # get county polygons and educational attainment estimates, poverty rate, ethnoracial group for summarizing over metro divisions
+  # get county polygons and poverty rate, ethnoracial group for summarizing over metro divisions
   counties_pre <- get_acs(geography = "county", survey = "acs5", year = 2011, 
-                                        # education
-                          variables = c("B07009_005", "B07009_006", "B07009_001",
+                          variables = c(
                                         # poverty
                                         "B06012_001", "B06012_002",
                                         # ethnoracial group
-                                        "B03002_001", "B03002_003"),
+                                        "B03002_001", "B03002_003"
+                                        ),
                           output = "wide", geometry = FALSE)
   
   # get metro division geometries
@@ -92,11 +92,8 @@ get_mmsa <- function(brfss) {
     left_join(counties_pre, by = "GEOID") %>% 
     # summarize population counts across all counties in metro division
     group_by(METDIVFP, NAME.x) %>% 
-    summarize(B07009_005E = sum(B07009_005E), B07009_006E = sum(B07009_006E), B07009_001E = sum(B07009_001E), 
-              B06012_002E = sum(B06012_002E), B06012_001E = sum(B06012_001E), 
+    summarize(B06012_002E = sum(B06012_002E), B06012_001E = sum(B06012_001E), 
               B03002_003E = sum(B03002_003E), B03002_001E = sum(B03002_001E)) %>% 
-    # compute proportion of population with Bachelor's degree or higher
-    mutate(prop_coll_or_grad = (B07009_005E+B07009_006E)/B07009_001E) %>% 
     # compute proportion under poverty level
     mutate(prop_poverty = B06012_002E/B06012_001E) %>% 
     # compute proportion non-Hispanic White
@@ -105,19 +102,15 @@ get_mmsa <- function(brfss) {
     # left_join(sample_names, by = c("METDIVFP" = "MMSA")) %>% 
     # # clean names
     # mutate(MMSANAME = paste0(MMSANAME, " Metropolitan Division")) %>% 
-    dplyr::select(MMSA = METDIVFP, prop_coll_or_grad, prop_poverty, prop_nhw, geometry)
+    dplyr::select(MMSA = METDIVFP, prop_poverty, prop_nhw, geometry)
   
-  # get baseline ACS educational attainment, poverty rate, ethnoracial group and CBSA (MMSA) geometry
+  # get baseline ACS poverty rate, ethnoracial group and CBSA (MMSA) geometry
   mmsa_pre <- get_acs(geography = "cbsa", 
-                      # education
-                      variables = c("B07009_005", "B07009_006", "B07009_001",
-                                    # poverty
+                      variables = c(# poverty
                                     "B06012_001", "B06012_002",
                                     # ethnoracial group
                                     "B03002_001", "B03002_003"),
                       year = 2011, survey = "acs5", output = "wide", geometry = TRUE) %>% 
-    # compute proportion of population with Bachelor's degree or higher
-    mutate(prop_coll_or_grad = (B07009_005E+B07009_006E)/B07009_001E) %>% 
     # compute proportion under poverty level
     mutate(prop_poverty = B06012_002E/B06012_001E) %>% 
     # compute proportion non-Hispanic White
@@ -125,7 +118,7 @@ get_mmsa <- function(brfss) {
     # filter for sample MMSAs
     filter(GEOID %in% sample_mmsa$MMSA) %>% 
     # select columns
-    dplyr::select(MMSA = GEOID, prop_coll_or_grad, prop_poverty, prop_nhw, geometry)
+    dplyr::select(MMSA = GEOID, prop_poverty, prop_nhw, geometry)
   
   # combine MMSAs and metro divisions
   mmsa <- mmsa_pre %>%
@@ -134,7 +127,7 @@ get_mmsa <- function(brfss) {
   return(mmsa)
 }
 
-get_ndvi_summary <- function(mmsa) {
+get_ndvi_summary <- function(sf) {
   
   # load monthly NDVI for 2011-2019
   ndvi_files <- list.files(path = here("data", "NDVI"))
@@ -148,35 +141,35 @@ get_ndvi_summary <- function(mmsa) {
   # load and reproject Gridded Population of the World for population weighting
   gpw <- rast(here("data", "gpw_v4_population_count_rev11_2020_30_sec.tif")) %>%
     # change CRS
-    project(crs(mmsa)) %>%
+    project(crs(sf)) %>%
     # match extent
-    crop(mmsa)
+    crop(sf)
   
-  # reproject NDVI raster to MMSA shapefile CRS
-  ndvi_proj <- lapply(ndvi, project, y = crs(mmsa)) %>% 
+  # reproject NDVI raster to shapefile CRS
+  ndvi_proj <- lapply(ndvi, project, y = crs(sf)) %>% 
     # crop to match extent
-    lapply(., crop, mmsa)
+    lapply(., crop, sf)
   
   # resample gpw to match NDVI grid cells
   gpw_ndvi <- resample(gpw, ndvi_proj[[1]]) %>% 
     # replace NA with 0
     classify(., cbind(NA, 0))
   
-  # extract NDVI weighted average over each MMSA  
-  ndvi_vals <- purrr::map(ndvi_proj, ~ exact_extract(.x, mmsa, fun = "weighted_mean", weights = gpw_ndvi))
+  # extract NDVI weighted average over each polygon  
+  ndvi_vals <- purrr::map(ndvi_proj, ~ exact_extract(.x, sf, fun = "weighted_mean", weights = gpw_ndvi))
   
   # initialize empty list
-  ndvi_mmsa <- list()
+  ndvi_sf <- list()
   
-  # append average NDVI values to reprojected MMSA shapefile
+  # append average NDVI values to shapefile
   for(i in 1:length(ndvi_vals)) {
     
-    ndvi_mmsa[[i]] <- mmsa %>% 
+    ndvi_sf[[i]] <- sf %>% 
       mutate(ndvi = ndvi_vals[[i]], year = str_extract(ndvi_files[i], regex("\\d{4}")))
   }
   
-  ndvi_summary <- ndvi_mmsa %>%
-    # bind rows for NDVI by MMSA across all months in 2011-2019
+  ndvi_summary <- ndvi_sf %>%
+    # bind rows for NDVI by unit across all months in 2011-2019
     bind_rows() %>%
     group_by(MMSA) %>% 
     # compute standard deviation of monthly NDVI values
@@ -238,7 +231,7 @@ get_full_data_strat <- function(brfss, ndvi_summary, mmsa) {
     left_join(regions, by = "STUSPS") %>%
     # join NDVI to BRFSS counts for all sample MMSAs
     inner_join(ndvi_summary_1[,c("MMSA", "ndvi_pre", "2019", "ndvi_sd")], by = c("MMSA")) %>%
-    # join educational attainment
+    # join ACS estimates
     left_join(mmsa, by = "MMSA") %>%
     # compute change in NDVI (scaled by factor of 10 to get 0.1-unit increases) and mental distress, 2011-2019
     mutate(ndvi_post_x10 = `2019`*10, ndvi_pre_x10 = ndvi_pre*10, diff_ndvi = ndvi_post_x10 - ndvi_pre_x10, diff_mh = mh_prop_post-mh_prop_pre)
@@ -441,7 +434,7 @@ get_full_data_overall <- function(brfss, ndvi_summary, mmsa) {
     left_join(regions, by = "STUSPS") %>%
     # join NDVI to BRFSS counts for all sample MMSAs
     inner_join(ndvi_summary_1[,c("MMSA", "ndvi_pre", "2019", "ndvi_sd")], by = "MMSA") %>%
-    # join educational attainment
+    # join ACS estimates
     left_join(mmsa, by = "MMSA") %>%
     # compute change in NDVI (scaled to get 0.1-unit increases) and mental distress, 2011-2019
     mutate(ndvi_post_x10 = `2019`*10, ndvi_pre_x10 = ndvi_pre*10, diff_ndvi = ndvi_post_x10 - ndvi_pre_x10, diff_mh = mh_prop_post-mh_prop_pre)
@@ -460,13 +453,13 @@ get_models <- function(full_data_strat, full_data_overall) {
     filter(owner == 0)
   
   # build model - overall
-  model_overall <- lm(diff_mh ~ diff_ndvi + ndvi_sd + ndvi_pre_x10 + mh_prop_pre + prop_coll_or_grad + REGION + REGION*diff_ndvi + prop_poverty + prop_nhw, data = full_data_overall)
+  model_overall <- lm(diff_mh ~ diff_ndvi + ndvi_sd + ndvi_pre_x10 + mh_prop_pre + REGION + REGION*diff_ndvi + prop_poverty + prop_nhw, data = full_data_overall)
 
   # build model - homeowners
-  model_owner1 <- lm(diff_mh ~ diff_ndvi + ndvi_sd + ndvi_pre_x10 + mh_prop_pre + prop_coll_or_grad + REGION + REGION*diff_ndvi + prop_poverty + prop_nhw, data = data_owner1)
+  model_owner1 <- lm(diff_mh ~ diff_ndvi + ndvi_sd + ndvi_pre_x10 + mh_prop_pre + REGION + REGION*diff_ndvi + prop_poverty + prop_nhw, data = data_owner1)
   
   # build model - non-homeowners
-  model_owner0 <- lm(diff_mh ~ diff_ndvi + ndvi_sd + ndvi_pre_x10 + mh_prop_pre + prop_coll_or_grad + REGION + REGION*diff_ndvi + prop_poverty + prop_nhw, data = data_owner0)
+  model_owner0 <- lm(diff_mh ~ diff_ndvi + ndvi_sd + ndvi_pre_x10 + mh_prop_pre + REGION + REGION*diff_ndvi + prop_poverty + prop_nhw, data = data_owner0)
   
   models <- list(model_overall, model_owner1, model_owner0)
   
@@ -493,13 +486,13 @@ get_models_s2 <- function(full_data_strat, full_data_overall, mmsa_to_remove) {
     filter(owner == 0)
   
   # build model - overall
-  model_overall <- lm(diff_mh ~ diff_ndvi + ndvi_sd + ndvi_pre_x10 + mh_prop_pre + prop_coll_or_grad + REGION + REGION*diff_ndvi + prop_poverty + prop_nhw, data = full_data_overall_s2)
+  model_overall <- lm(diff_mh ~ diff_ndvi + ndvi_sd + ndvi_pre_x10 + mh_prop_pre + REGION + REGION*diff_ndvi + prop_poverty + prop_nhw, data = full_data_overall_s2)
   
   # build model - homeowners
-  model_owner1 <- lm(diff_mh ~ diff_ndvi + ndvi_sd + ndvi_pre_x10 + mh_prop_pre + prop_coll_or_grad + REGION + REGION*diff_ndvi + prop_poverty + prop_nhw, data = data_owner1)
+  model_owner1 <- lm(diff_mh ~ diff_ndvi + ndvi_sd + ndvi_pre_x10 + mh_prop_pre + REGION + REGION*diff_ndvi + prop_poverty + prop_nhw, data = data_owner1)
   
   # build model - non-homeowners
-  model_owner0 <- lm(diff_mh ~ diff_ndvi + ndvi_sd + ndvi_pre_x10 + mh_prop_pre + prop_coll_or_grad + REGION + REGION*diff_ndvi + prop_poverty + prop_nhw, data = data_owner0)
+  model_owner0 <- lm(diff_mh ~ diff_ndvi + ndvi_sd + ndvi_pre_x10 + mh_prop_pre + REGION + REGION*diff_ndvi + prop_poverty + prop_nhw, data = data_owner0)
   
   models_s2 <- list(model_overall, model_owner1, model_owner0)
   
@@ -507,9 +500,9 @@ get_models_s2 <- function(full_data_strat, full_data_overall, mmsa_to_remove) {
   
 }
 
-get_ndvi_summer <- function(mmsa) {
+get_ndvi_summer <- function(sf) {
   
-  # load monthly NDVI for 2011-2019, keep only May-Sep of each year
+  # load monthly NDVI for 2011-2019, keep only May through Aug of each year
   ndvi_files <- list.files(path = here("data", "NDVI")) %>% 
     .[c(5:8,17:20,29:32,41:44,53:56,65:68,77:80,89:92,101:104)]
   
@@ -522,35 +515,35 @@ get_ndvi_summer <- function(mmsa) {
   # load and reproject Gridded Population of the World for population weighting
   gpw <- rast(here("data", "gpw_v4_population_count_rev11_2020_30_sec.tif")) %>%
     # change CRS
-    project(crs(mmsa)) %>%
+    project(crs(sf)) %>%
     # match extent
-    crop(mmsa)
+    crop(sf)
   
-  # reproject NDVI raster to MMSA shapefile CRS
-  ndvi_proj <- lapply(ndvi, project, y = crs(mmsa)) %>% 
+  # reproject NDVI raster to shapefile CRS
+  ndvi_proj <- lapply(ndvi, project, y = crs(sf)) %>% 
     # crop to match extent
-    lapply(., crop, mmsa)
+    lapply(., crop, sf)
   
   # resample gpw to match NDVI grid cells
   gpw_ndvi <- resample(gpw, ndvi_proj[[1]]) %>% 
     # replace NA with 0
     classify(., cbind(NA, 0))
   
-  # extract NDVI weighted average over each MMSA  
-  ndvi_vals <- purrr::map(ndvi_proj, ~ exact_extract(.x, mmsa, fun = "weighted_mean", weights = gpw_ndvi))
+  # extract NDVI weighted average over each polygon  
+  ndvi_vals <- purrr::map(ndvi_proj, ~ exact_extract(.x, sf, fun = "weighted_mean", weights = gpw_ndvi))
   
   # initialize empty list
-  ndvi_mmsa <- list()
+  ndvi_sf <- list()
   
-  # append average NDVI values to reprojected MMSA shapefile
+  # append average NDVI values to shapefile
   for(i in 1:length(ndvi_vals)) {
     
-    ndvi_mmsa[[i]] <- mmsa %>% 
+    ndvi_sf[[i]] <- sf %>% 
       mutate(ndvi = ndvi_vals[[i]], year = str_extract(ndvi_files[i], regex("\\d{4}")))
   }
   
-  ndvi_summer <- ndvi_mmsa %>%
-    # bind rows for NDVI by MMSA across all months in 2011-2019
+  ndvi_summer <- ndvi_sf %>%
+    # bind rows for NDVI by area across all months
     bind_rows() %>%
     group_by(MMSA) %>% 
     # compute standard deviation of monthly NDVI values
@@ -569,28 +562,137 @@ get_ndvi_summer <- function(mmsa) {
   
 }
 
-get_table_1 <- function(full_data_strat, full_data_overall) {
+get_tracts_brfss <- function() {
   
-  # get summary data stratified by housing tenure
-  full_data_strat_summary <- full_data_strat %>% 
-    as_tibble() %>% 
-    dplyr::select(owner, mh_prop_pre, mh_prop_post, diff_mh) %>% 
-    mutate(owner = case_match(owner, "0" ~ "Non-homeowner", "1" ~ "Homeowner"))
+  # list contiguous state names + DC
+  sample_states <- c(state.abb[!state.abb %in% c("AK","HI")], "DC")
   
-  labels_1 <- list(mh_prop_pre ~ "Mental distress prevalence, 2011",
-                   mh_prop_post ~ "Mental distress prevalence, 2019",
-                   diff_mh ~ "Change in mental distress prevalence, 2011-2019")
+  # load 500 cities mental distress prevalence estimates for 2014 (2016 release)
+  tracts_14_500cities <- read.csv(here("data", "500_Cities__Census_Tract-level_Data__GIS_Friendly_Format___2016_release_20250622.csv")) 
   
-  strat_tbl <- tbl_summary(by = owner, data = full_data_strat_summary,
-                           statistic = list(all_continuous() ~ "{mean} ({sd})"),
-                           label = labels_1,
-                           digits = list(all_continuous() ~ c(3, 3))) %>% 
-    # convert to tibble for combining
-    as_tibble()
+  tracts_14 <- tracts_14_500cities %>% 
+    # select variables
+    dplyr::select(StateAbbr, TractFIPS, Place_TractID, Population2010, MHLTH_CrudePrev) %>% 
+    mutate(GEOID = str_pad(TractFIPS, width = 11, side = "left", pad = "0")) %>% 
+    # filter for contiguous states
+    filter(StateAbbr %in% sample_states) %>% 
+    # compute weighted mean of tract portions for each split tract
+    group_by(GEOID) %>% 
+    summarize(MDP_14 = weighted.mean(MHLTH_CrudePrev, w = Population2010)) %>% 
+    ungroup()
+  
+  # download ZIP file for modified 2010 tract polygons for 2016 BRFSS 500 Cities release
+  if(!file.exists(here("data", "500Cities_Tracts_11082016.zip"))){download.file("https://chronicdata.cdc.gov/download/x7zy-2xmx/application%2Fzip", destfile = here("data", "500Cities_Tracts_11082016.zip"))}
+  
+  # unzip file
+  unzip(here("data", "500Cities_Tracts_11082016.zip"), exdir = here("data", "500Cities_Tracts_11082016"))
+  
+  # # load shapefile for 2016 release
+  # tracts_14_sf <- st_read(here("data", "500Cities_Tracts_11082016")) %>% 
+  #   # join 2016 release (with 2014 mental distress estimates) to appropriate shapefile
+  #   full_join(tracts_14, by = c("plctract10" = "Place_TractID"))
+  
+  # load PLACES mental distress prevalence estimates for 2019 (2021 release)
+  tracts_19_PLACES <- read.csv(here("data", "PLACES__Census_Tract_Data__GIS_Friendly_Format___2021_release_20250622.csv"))
+  
+  tracts_19 <- tracts_19_PLACES %>% 
+    # select variables
+    dplyr::select(StateAbbr, TractFIPS, MHLTH_CrudePrev) %>% 
+    mutate(GEOID = str_pad(TractFIPS, width = 11, side = "left", pad = "0")) %>% 
+    # filter for contiguous states 
+    filter(StateAbbr %in% sample_states)
+  
+  # load 2015 census tract boundaries (used for 2021 release)
+  tracts_sf <- get_acs(geography = "tract", survey = "acs5", variables = "B00001_001",
+                       state = sample_states, year = 2015, geometry = TRUE) %>%
+    # join BRFSS
+    right_join(tracts_19, by = "GEOID") %>% # tract with GEOID 06037930401 (in LA county) does not have polygon match in 2015 shapefile
+    # join both datasets by GEOID, keep only 2015 boundary polygons
+    right_join(tracts_14, by = "GEOID")
+    
+  # # identify tracts with multiple polygons/estimates in 2016 release but only one estimate in 2021 release
+  # drop_tracts <- tracts_sf %>% 
+  #   group_by(tract2010) %>% 
+  #   summarize(count = n()) %>% 
+  #   filter(count>1) %>% 
+  #   pull(tract2010)
+  # 
+  # tracts_sample <- tracts_sf %>% 
+  #   # filter out tracts identified above
+  #   filter(!tract2010 %in% drop_tracts)
+  
+  # pause execution before next API request - for 60 seconds
+  Sys.sleep(60)
+  
+  # load ACS covariate estimates for 2014
+  tracts_acs <- get_acs(geography = "tract", survey = "acs5", year = 2014, 
+                        # in renter-occupied unit
+                        variables = c("B07013_001", "B07013_003",
+                                      # poverty
+                                      "B06012_001", "B06012_002",
+                                      # ethnoracial group
+                                      "B03002_001", "B03002_003"),
+                        state = sample_states,
+                        output = "wide", geometry = FALSE)
+  
+  # identify sample tracts missing geometry
+  missing_geo <- tracts_sf %>% 
+    filter(st_is_empty(geometry)) %>% 
+    pull(GEOID)
+  
+  # find 2010 tract boundary for GEOID 06037930401 in LA county (missing from 2015 tract shapefile)
+  tract_add <- tracts(state = str_sub(missing_geo, start = 1L, end = 2L), county = str_sub(missing_geo, start = 3L, end = 5L), year = 2010) %>% 
+    filter(GEOID10 == missing_geo)
+  
+  tracts_sf$geometry[st_is_empty(tracts_sf$geometry)] <- tract_add$geometry
+  
+  tracts_brfss <- tracts_sf %>% 
+    # join covariates
+    left_join(tracts_acs, by = "GEOID") %>% 
+    # compute proportion of householders living in renter-occupied units
+    mutate(prop_renter = B07013_003E/B07013_001E) %>% 
+    # compute proportion under poverty level
+    mutate(prop_poverty = B06012_002E/B06012_001E) %>% 
+    # compute proportion non-Hispanic White
+    mutate(prop_nhw = B03002_003E/B03002_001E) %>% 
+    # compute mental distress prevalence change
+    mutate(mh_diff = MHLTH_CrudePrev-MDP_14) %>% 
+    # rename GEOID to MMSA for get_ndvi_summary
+    mutate(MMSA = GEOID)
+  
+  return(tracts_brfss)
+  
+}
+
+get_model_tracts <- function(tracts_brfss, ndvi_summary_tracts) {
+  
+  # to assign regions to tracts
+  regions <- states(year = 2019) %>% 
+    dplyr::select(REGION, DIVISION, STUSPS) %>% 
+    st_drop_geometry()
+  
+  # join data
+  full_data_tracts <- tracts_brfss %>% 
+    full_join(ndvi_summary_tracts, by = c("GEOID" = "MMSA")) %>% 
+    # compute change in NDVI (scaled by factor of 10 to get 0.1-unit increases)
+    mutate(ndvi_post_x10 = `2019`*10, ndvi_pre_x10 = `2011`*10, diff_ndvi = ndvi_post_x10 - ndvi_pre_x10) %>% 
+    # identify region
+    left_join(regions, by = c("StateAbbr" = "STUSPS"))
+  
+  # build model
+  model_tracts <- lm(mh_diff ~ diff_ndvi + ndvi_sd + ndvi_pre_x10 + MDP_14 + 
+                      REGION + REGION*diff_ndvi + prop_poverty + prop_nhw + prop_renter + 
+                      prop_renter*diff_ndvi, data = full_data_tracts)
+
+  return(model_tracts)
+  
+}
+
+get_table_1 <- function(full_data_overall) {
   
   full_data_overall_summary <- full_data_overall %>% 
     # select vars
-    dplyr::select(mh_prop_pre, mh_prop_post, diff_mh, ndvi_11 = ndvi_pre, ndvi_19 = `2019`, diff_ndvi, prop_coll_or_grad, REGION, prop_poverty, prop_nhw) %>% 
+    dplyr::select(mh_prop_pre, mh_prop_post, diff_mh, ndvi_11 = ndvi_pre, ndvi_19 = `2019`, diff_ndvi, REGION, prop_poverty, prop_nhw) %>% 
     # recode region names
     mutate(REGION = case_match(REGION, "1" ~ "Northeast", "2" ~ "Midwest", "3" ~ "South", "4" ~ "West")) %>% 
     # rescale NDVI change back to get absolute change unscaled
@@ -602,7 +704,6 @@ get_table_1 <- function(full_data_strat, full_data_overall) {
                    ndvi_11 ~ "NDVI, 2011",
                    ndvi_19 ~ "NDVI, 2019",
                    diff_ndvi ~ "Change in NDVI, 2011-2019",
-                   prop_coll_or_grad ~ "Prevalence of college degree or higher educational attainment, 2011",
                    REGION ~ "Region",
                    prop_poverty ~ "Poverty rate, 2011",
                    prop_nhw ~ "Proportion of residents who are non-Hispanic White, 2011"
@@ -616,11 +717,9 @@ get_table_1 <- function(full_data_strat, full_data_overall) {
     # convert to tibble for combining
     as_tibble()
   
-  table_1 <- strat_tbl %>% 
-    full_join(overall_tbl, by = "**Characteristic**") %>% 
+  table_1 <- overall_tbl %>% 
     # clean names
-    rename("Measure" = "**Characteristic**", "Homeowner" = "**Homeowner**, N = 109",
-           "Non-homeowner" = "**Non-homeowner**, N = 109", "Overall" = "**N = 109**")
+    rename("Measure" = "**Characteristic**", "Overall" = "**N = 109**")
   
   write.csv(table_1, here("output", "table_1.csv"))
   
@@ -654,7 +753,32 @@ get_table_1 <- function(full_data_strat, full_data_overall) {
   return(table_1)
 }
 
-get_figure_A1 <- function(mmsa) {
+get_table_2 <- function(full_data_strat) {
+  
+  # get summary data stratified by housing tenure
+  full_data_strat_summary <- full_data_strat %>% 
+    as_tibble() %>% 
+    dplyr::select(owner, mh_prop_pre, mh_prop_post, diff_mh) %>% 
+    mutate(owner = case_match(owner, "0" ~ "Non-homeowner", "1" ~ "Homeowner"))
+  
+  labels_1 <- list(mh_prop_pre ~ "Mental distress prevalence, 2011",
+                   mh_prop_post ~ "Mental distress prevalence, 2019",
+                   diff_mh ~ "Change in mental distress prevalence, 2011-2019")
+  
+  table_2 <- tbl_summary(by = owner, data = full_data_strat_summary,
+                           statistic = list(all_continuous() ~ "{mean} ({sd})"),
+                           label = labels_1,
+                           digits = list(all_continuous() ~ c(3, 3))) %>% 
+    # convert to tibble for combining
+    as_tibble()
+  
+  write.csv(table_2, here("output", "table_2.csv"))
+  
+  return(table_2)
+  
+}
+
+get_figure_S1 <- function(mmsa) {
   
   # load MMSA polygons
   mmsa_map <- core_based_statistical_areas(year = 2011) %>% 
@@ -682,22 +806,22 @@ get_figure_A1 <- function(mmsa) {
     # conterminous U.S.
     st_intersection(us)
   
-  # plot figure A1
-  figure_A1 <- ggplot() +
+  # plot figure S1
+  figure_S1 <- ggplot() +
     geom_sf(data = nation, alpha = 0) +
     geom_sf(data = mmsa_map, aes(fill = Sample)) +
     geom_sf(data = division_map, aes(fill = Sample)) + 
     theme_minimal() + 
     scale_fill_manual(values = fills)
   
-  # save figure A1
-  ggsave(here("output", "figure_A1.png"), figure_A1, width = 10, height = 6, dpi = 400)
+  # save figure S1
+  ggsave(here("output", "figure_S1.png"), figure_S1, width = 10, height = 6, dpi = 400)
   
-  return(figure_A1)
+  return(figure_S1)
   
 }
 
-get_figure_A2 <- function(full_data_overall) {
+get_figure_S2 <- function(full_data_overall) {
  
   full_data_overall_1 <- full_data_overall %>% 
     # reverse scaling of NDVI
@@ -713,31 +837,57 @@ get_figure_A2 <- function(full_data_overall) {
   # save output
   write.csv(ndvi_change_summary, here("output", "ndvi_change_summary.csv"))
    
-  # plot figure A2
-  figure_A2 <- ggplot() + 
+  # plot figure S2
+  figure_S2 <- ggplot() + 
     geom_histogram(data = full_data_overall_1, aes(x = diff_ndvi), fill = "#00a926", color = "black", binwidth = 0.005) +
     theme_minimal() +
     labs(x = "Change in Average Annual NDVI, 2011-2019", y = "Number of Metropolitan Areas") + 
     scale_x_continuous(breaks = seq(-0.04, 0.09, 0.01))
   
-  # save figure A2
-  ggsave(here("output", "figure_A2.png"), figure_A2, width = 10, height = 6, dpi = 400)
+  # save figure S2
+  ggsave(here("output", "figure_S2.png"), figure_S2, width = 10, height = 6, dpi = 400)
     
-  return(figure_A2)
+  return(figure_S2)
   
 }
 
-get_figure_A3 <- function(full_data_overall) {
+get_figure_S3 <- function(full_data_overall, full_data_strat) {
   
-  # plot figure A3
-  figure_A3 <- ggplot() +
-    geom_histogram(data = full_data_overall, aes(x = diff_mh), fill = "purple", color = "black", binwidth = 0.01) +
+  data_owner1 <- full_data_strat %>% 
+    # filter for homeowner prevalence estimates
+    filter(owner == 1)
+  
+  data_owner0 <- full_data_strat %>% 
+    # filter for non-homeowner prevalence estimates
+    filter(owner == 0)
+  
+  figure_S3 <- list()
+  
+  # plot figure S3a - overall
+  figure_S3[[1]] <- ggplot() +
+    geom_histogram(data = full_data_overall, aes(x = diff_mh), fill = "purple", color = "black") +
     theme_minimal() +
     labs(x = "Change in Prevalence of 14+ Poor Mental Health Days, 2011-2019", y = "Number of Metropolitan Areas") + 
-    scale_x_continuous(breaks = seq(-0.2, 0.2, 0.05))
+    scale_x_continuous(breaks = seq(-0.25, 0.25, 0.05))
   
-  # save figure A3
-  ggsave(here("output", "figure_A3.png"), figure_A3, height = 6, width = 10, dpi = 400)
+  # plot figure S3b - owners
+  figure_S3[[2]] <- ggplot() +
+    geom_histogram(data = data_owner1, aes(x = diff_mh), fill = "purple", color = "black") +
+    theme_minimal() +
+    labs(x = "Change in Prevalence of 14+ Poor Mental Health Days, 2011-2019", y = "Number of Metropolitan Areas") + 
+    scale_x_continuous(breaks = seq(-0.25, 0.25, 0.05))
+  
+  # plot figure S3c - renters
+  figure_S3[[3]] <- ggplot() +
+    geom_histogram(data = data_owner0, aes(x = diff_mh), fill = "purple", color = "black") +
+    theme_minimal() +
+    labs(x = "Change in Prevalence of 14+ Poor Mental Health Days, 2011-2019", y = "Number of Metropolitan Areas") + 
+    scale_x_continuous(breaks = seq(-0.25, 0.25, 0.05))
+  
+  # save figure S3
+  ggsave(here("output", "figure_S3a.png"), figure_S3[[1]], height = 6, width = 10, dpi = 400)
+  ggsave(here("output", "figure_S3b.png"), figure_S3[[2]], height = 6, width = 10, dpi = 400)
+  ggsave(here("output", "figure_S3c.png"), figure_S3[[3]], height = 6, width = 10, dpi = 400)
   
   mh_change_summary <- full_data_overall %>% 
     pull(diff_mh) %>% 
@@ -748,18 +898,17 @@ get_figure_A3 <- function(full_data_overall) {
   # save output
   write.csv(mh_change_summary, here("output", "mh_change_summary.csv"))
   
-  return(figure_A3)
+  return(figure_S3)
   
 }
 
-get_table_2 <- function(models, analysis) {
+get_table_3 <- function(models, analysis) {
   
   # set variable labels
   labels_t2 <- list(diff_ndvi ~ "NDVI change, 2011-2019",
                     ndvi_sd ~ "Standard deviation in monthly average NDVI",
                     ndvi_pre_x10 ~ "Average NDVI, 2011",
                     mh_prop_pre ~ "Mental distress prevalence, 2011",
-                    prop_coll_or_grad ~ "Prevalence of college degree or higher educational attainment",
                     REGION ~ "Region",
                     `diff_ndvi:REGION` ~ "NDVI change * Region",
                     prop_poverty ~ "Poverty rate, 2011",
@@ -778,7 +927,7 @@ get_table_2 <- function(models, analysis) {
                                pvalue_fun = function(x) style_pvalue(x, digits = 3)) %>% 
     as_tibble()
   
-  table_2 <- overall_tbl %>% 
+  table_3 <- overall_tbl %>% 
     full_join(owner1_tbl, by = "**Characteristic**") %>% 
     full_join(owner0_tbl, by = "**Characteristic**") %>% 
     # clean names
@@ -786,9 +935,9 @@ get_table_2 <- function(models, analysis) {
            beta_owner0 = 8, CI_owner0 = 9, p_owner0 = 10)
   
   # save output
-  write.csv(table_2, here("output", paste0("table_", analysis, ".csv")))
+  write.csv(table_3, here("output", paste0("table_", analysis, ".csv")))
   
-  return(table_2)
+  return(table_3)
   
 }
 
@@ -835,7 +984,7 @@ get_missing_tbl <- function(brfss, mmsa) {
     filter(!is.na(MENTHLTH) & !(MENTHLTH %in% c(77,99))) %>%
     nrow()
   
-  # included in final sample for subgroup prevalence estimates
+  # included in final sample for calculating subgroup prevalence estimates (not calculated in group reporting "other arrangement")
   included_strat_11 <- brfss[[1]] %>% 
     filter(MMSA %in% mmsa$MMSA) %>% 
     filter(!is.na(RENTHOM1) & !is.na(MENTHLTH) & !(RENTHOM1 %in% c(7,9)) & !(MENTHLTH %in% c(77,99))) %>%
@@ -865,7 +1014,7 @@ get_missing_tbl <- function(brfss, mmsa) {
   
 }
 
-get_table_A1 <- function(full_data_strat, full_data_overall) {
+get_table_S1 <- function(full_data_strat, full_data_overall) {
   
   data_owner1 <- full_data_strat %>% 
     # filter for homeowner prevalence estimates
@@ -885,37 +1034,33 @@ get_table_A1 <- function(full_data_strat, full_data_overall) {
   uni[[2]] <- lm(diff_mh ~ ndvi_sd, data = full_data_overall)
   uni[[3]] <- lm(diff_mh ~ ndvi_pre_x10, data = full_data_overall)
   uni[[4]] <- lm(diff_mh ~ mh_prop_pre, data = full_data_overall)
-  uni[[5]] <- lm(diff_mh ~ prop_coll_or_grad, data = full_data_overall)
-  uni[[6]] <- lm(diff_mh ~ REGION, data = full_data_overall)
-  uni[[7]] <- lm(diff_mh ~ prop_poverty, data = full_data_overall)
-  uni[[8]] <- lm(diff_mh ~ prop_nhw, data = full_data_overall)
+  uni[[5]] <- lm(diff_mh ~ REGION, data = full_data_overall)
+  uni[[6]] <- lm(diff_mh ~ prop_poverty, data = full_data_overall)
+  uni[[7]] <- lm(diff_mh ~ prop_nhw, data = full_data_overall)
 
   # univariate analyses - homeowners
   uni_1[[1]] <- lm(diff_mh ~ diff_ndvi, data = data_owner1)
   uni_1[[2]] <- lm(diff_mh ~ ndvi_sd, data = data_owner1)
   uni_1[[3]] <- lm(diff_mh ~ ndvi_pre_x10, data = data_owner1)
   uni_1[[4]] <- lm(diff_mh ~ mh_prop_pre, data = data_owner1)
-  uni_1[[5]] <- lm(diff_mh ~ prop_coll_or_grad, data = data_owner1)
-  uni_1[[6]] <- lm(diff_mh ~ REGION, data = data_owner1)
-  uni_1[[7]] <- lm(diff_mh ~ prop_poverty, data = data_owner1)
-  uni_1[[8]] <- lm(diff_mh ~ prop_nhw, data = data_owner1)
+  uni_1[[5]] <- lm(diff_mh ~ REGION, data = data_owner1)
+  uni_1[[6]] <- lm(diff_mh ~ prop_poverty, data = data_owner1)
+  uni_1[[7]] <- lm(diff_mh ~ prop_nhw, data = data_owner1)
 
   # univariate analyses - non-homeowners
   uni_0[[1]] <- lm(diff_mh ~ diff_ndvi, data = data_owner0)
   uni_0[[2]] <- lm(diff_mh ~ ndvi_sd, data = data_owner0)
   uni_0[[3]] <- lm(diff_mh ~ ndvi_pre_x10, data = data_owner0)
   uni_0[[4]] <- lm(diff_mh ~ mh_prop_pre, data = data_owner0)
-  uni_0[[5]] <- lm(diff_mh ~ prop_coll_or_grad, data = data_owner0)
-  uni_0[[6]] <- lm(diff_mh ~ REGION, data = data_owner0)
-  uni_0[[7]] <- lm(diff_mh ~ prop_poverty, data = data_owner0)
-  uni_0[[8]] <- lm(diff_mh ~ prop_nhw, data = data_owner0)
+  uni_0[[5]] <- lm(diff_mh ~ REGION, data = data_owner0)
+  uni_0[[6]] <- lm(diff_mh ~ prop_poverty, data = data_owner0)
+  uni_0[[7]] <- lm(diff_mh ~ prop_nhw, data = data_owner0)
   
   # set variable labels
   labels_t2 <- list(diff_ndvi ~ "NDVI change, 2011-2019",
                     ndvi_sd ~ "Standard deviation in monthly average NDVI",
                     ndvi_pre_x10 ~ "Average NDVI, 2011",
                     mh_prop_pre ~ "Mental distress prevalence, 2011",
-                    prop_coll_or_grad ~ "Prevalence of college degree or higher educational attainment",
                     REGION ~ "Region",
                     `diff_ndvi:REGION` ~ "NDVI change * Region",
                     prop_poverty ~ "Poverty rate, 2011",
@@ -932,12 +1077,40 @@ get_table_A1 <- function(full_data_strat, full_data_overall) {
     bind_rows()
   
   # combine datasets
-  table_A1 <- tbl %>% 
+  table_S1 <- tbl %>% 
     full_join(tbl_1, by = "**Characteristic**") %>% 
     full_join(tbl_0, by = "**Characteristic**")
   
-  write.csv(table_A1, here("output", "table_A1.csv"))
+  write.csv(table_S1, here("output", "table_S1.csv"))
   
-  return(table_A1)
+  return(table_S1)
   
 }
+
+get_table_S4 <- function(model_tracts) {
+  
+  # set variable labels
+  labels_S4 <- list(diff_ndvi ~ "NDVI change, 2014-2019",
+                    ndvi_sd ~ "Standard deviation in monthly average NDVI",
+                    ndvi_pre_x10 ~ "Average NDVI, 2014",
+                    MDP_14 ~ "Mental distress prevalence, 2014",
+                    REGION ~ "Region",
+                    `diff_ndvi:REGION` ~ "NDVI change * Region",
+                    prop_poverty ~ "Poverty rate, 2014",
+                    prop_nhw ~ "Proportion of residents who are non-Hispanic White, 2014",
+                    prop_renter ~ "Proportion of residents in renter-occupied unit, 2014",
+                    `diff_ndvi:prop_renter` ~ "NDVI change * Proportion renters"
+  )
+  
+  table_S4 <- tbl_regression(model_tracts, label = labels_S4, estimate_fun = style_ratio, 
+                                pvalue_fun = function(x) style_pvalue(x, digits = 3)) %>% 
+    as_tibble()
+  
+  # save output
+  write.csv(table_S4, here("output", "table_S4.csv"))
+  
+  return(table_S4)
+  
+}
+
+
