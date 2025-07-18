@@ -85,9 +85,6 @@ list(
   tar_target(ndvi_summary_tracts, {
     get_ndvi_summary(sf = tracts_brfss, analysis = "tracts")
   }),
-  # tar_target(ndvi_summary_all_tracts, {
-  #   get_ndvi_summary_all_tracts(sf = tracts_brfss)
-  # }),
   tar_target(model_tracts, {
     get_model_tracts(tracts_brfss = tracts_brfss, ndvi_summary_tracts = ndvi_summary_tracts)
   }),

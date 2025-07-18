@@ -195,67 +195,6 @@ get_ndvi_summary <- function(sf, analysis) {
   
 }
 
-get_ndvi_summary_all_tracts <- function(sf) {
-
-  # load monthly NDVI for 2011-2019
-  ndvi_files <- list.files(path = here("data", "NDVI"))
-
-  # create raster for each NDVI file
-  ndvi <- purrr::map(ndvi_files, ~ rast(here("data", "NDVI", .x)))
-
-  # unzip GPW data
-  unzip(here("data", "gpw-v4-population-count-rev11_2020_30_sec_tif.zip"), files = "gpw_v4_population_count_rev11_2020_30_sec.tif", exdir = here("data"))
-
-  # load and reproject Gridded Population of the World for population weighting
-  gpw <- rast(here("data", "gpw_v4_population_count_rev11_2020_30_sec.tif")) %>%
-    # change CRS
-    project(crs(sf)) %>%
-    # match extent
-    crop(sf)
-
-  # reproject NDVI raster to shapefile CRS
-  ndvi_proj <- lapply(ndvi, project, y = crs(sf)) %>%
-    # crop to match extent
-    lapply(., crop, sf)
-
-  # resample gpw to match NDVI grid cells
-  gpw_ndvi <- resample(gpw, ndvi_proj[[1]]) %>%
-    # replace NA with 0
-    classify(., cbind(NA, 0))
-
-  # extract NDVI weighted average over each polygon
-  ndvi_vals <- purrr::map(ndvi_proj, ~ exact_extract(.x, sf, fun = "weighted_mean", weights = gpw_ndvi))
-
-  # initialize empty list
-  ndvi_sf <- list()
-
-  # append average NDVI values to shapefile
-  for(i in 1:length(ndvi_vals)) {
-
-    ndvi_sf[[i]] <- sf %>%
-      mutate(ndvi = ndvi_vals[[i]], year = str_extract(ndvi_files[i], regex("\\d{4}")))
-  }
-
-  ndvi_summary_all_tracts <- ndvi_sf %>%
-    # bind rows for NDVI by unit across all months in 2011-2019
-    bind_rows() %>%
-    group_by(MMSA) %>%
-    # compute standard deviation of monthly NDVI values
-    mutate(ndvi_sd = sd(ndvi, na.rm = TRUE)) %>%
-    group_by(MMSA, year) %>%
-    # average NDVI across all months in each year
-    summarize(ndvi_mean = mean(ndvi, na.rm = TRUE), ndvi_sd = first(ndvi_sd)) %>%
-    # drop geometry
-    st_drop_geometry() %>%
-    # remove grouping
-    ungroup() %>%
-    # pivot to wide format
-    pivot_wider(names_from = year, values_from = ndvi_mean)
-
-  return(ndvi_summary_all_tracts)
-
-}
-
 get_full_data_strat <- function(brfss, ndvi_summary, mmsa) {
     
   svy_pre <- brfss[[1]] %>%
