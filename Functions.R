@@ -127,10 +127,17 @@ get_mmsa <- function(brfss) {
   return(mmsa)
 }
 
-get_ndvi_summary <- function(sf) {
+get_ndvi_summary <- function(sf, analysis) {
   
   # load monthly NDVI for 2011-2019
   ndvi_files <- list.files(path = here("data", "NDVI"))
+  
+  if(analysis == "tracts") {
+    
+    # for tract-level secondary analysis, subset list to only 2014-2019 months
+    ndvi_files <- ndvi_files[37:108]
+    
+  }
   
   # create raster for each NDVI file
   ndvi <- purrr::map(ndvi_files, ~ rast(here("data", "NDVI", .x)))
@@ -186,6 +193,67 @@ get_ndvi_summary <- function(sf) {
   
   return(ndvi_summary)
   
+}
+
+get_ndvi_summary_all_tracts <- function(sf) {
+
+  # load monthly NDVI for 2011-2019
+  ndvi_files <- list.files(path = here("data", "NDVI"))
+
+  # create raster for each NDVI file
+  ndvi <- purrr::map(ndvi_files, ~ rast(here("data", "NDVI", .x)))
+
+  # unzip GPW data
+  unzip(here("data", "gpw-v4-population-count-rev11_2020_30_sec_tif.zip"), files = "gpw_v4_population_count_rev11_2020_30_sec.tif", exdir = here("data"))
+
+  # load and reproject Gridded Population of the World for population weighting
+  gpw <- rast(here("data", "gpw_v4_population_count_rev11_2020_30_sec.tif")) %>%
+    # change CRS
+    project(crs(sf)) %>%
+    # match extent
+    crop(sf)
+
+  # reproject NDVI raster to shapefile CRS
+  ndvi_proj <- lapply(ndvi, project, y = crs(sf)) %>%
+    # crop to match extent
+    lapply(., crop, sf)
+
+  # resample gpw to match NDVI grid cells
+  gpw_ndvi <- resample(gpw, ndvi_proj[[1]]) %>%
+    # replace NA with 0
+    classify(., cbind(NA, 0))
+
+  # extract NDVI weighted average over each polygon
+  ndvi_vals <- purrr::map(ndvi_proj, ~ exact_extract(.x, sf, fun = "weighted_mean", weights = gpw_ndvi))
+
+  # initialize empty list
+  ndvi_sf <- list()
+
+  # append average NDVI values to shapefile
+  for(i in 1:length(ndvi_vals)) {
+
+    ndvi_sf[[i]] <- sf %>%
+      mutate(ndvi = ndvi_vals[[i]], year = str_extract(ndvi_files[i], regex("\\d{4}")))
+  }
+
+  ndvi_summary_all_tracts <- ndvi_sf %>%
+    # bind rows for NDVI by unit across all months in 2011-2019
+    bind_rows() %>%
+    group_by(MMSA) %>%
+    # compute standard deviation of monthly NDVI values
+    mutate(ndvi_sd = sd(ndvi, na.rm = TRUE)) %>%
+    group_by(MMSA, year) %>%
+    # average NDVI across all months in each year
+    summarize(ndvi_mean = mean(ndvi, na.rm = TRUE), ndvi_sd = first(ndvi_sd)) %>%
+    # drop geometry
+    st_drop_geometry() %>%
+    # remove grouping
+    ungroup() %>%
+    # pivot to wide format
+    pivot_wider(names_from = year, values_from = ndvi_mean)
+
+  return(ndvi_summary_all_tracts)
+
 }
 
 get_full_data_strat <- function(brfss, ndvi_summary, mmsa) {
@@ -675,15 +743,71 @@ get_model_tracts <- function(tracts_brfss, ndvi_summary_tracts) {
   full_data_tracts <- tracts_brfss %>% 
     full_join(ndvi_summary_tracts, by = c("GEOID" = "MMSA")) %>% 
     # compute change in NDVI (scaled by factor of 10 to get 0.1-unit increases)
-    mutate(ndvi_post_x10 = `2019`*10, ndvi_pre_x10 = `2011`*10, diff_ndvi = ndvi_post_x10 - ndvi_pre_x10) %>% 
+    mutate(ndvi_post_x10 = `2019`*10, ndvi_pre_x10 = `2014`*10, diff_ndvi = ndvi_post_x10 - ndvi_pre_x10) %>% 
     # identify region
-    left_join(regions, by = c("StateAbbr" = "STUSPS"))
+    left_join(regions, by = c("StateAbbr" = "STUSPS")) %>% 
+    # scale mental distress prevalence to match primary analysis
+    mutate(MDP_14 = MDP_14/100, MHLTH_CrudePrev = MHLTH_CrudePrev/100) %>% 
+    mutate(mh_diff = MHLTH_CrudePrev - MDP_14)
   
   # build model
   model_tracts <- lm(mh_diff ~ diff_ndvi + ndvi_sd + ndvi_pre_x10 + MDP_14 + 
                       REGION + REGION*diff_ndvi + prop_poverty + prop_nhw + prop_renter + 
                       prop_renter*diff_ndvi, data = full_data_tracts)
 
+  ## check missingness
+  # missing 2019 BRFSS MDP
+  missing_brfss_19 <- full_data_tracts %>% 
+    filter(is.na(MHLTH_CrudePrev)) %>% 
+    nrow()
+  
+  # complete BRFSS data in 2014 and 2019
+  complete_brfss <- full_data_tracts %>%
+    filter(!is.na(mh_diff))
+  
+  # complete BRFSS data but missing one or more covariates
+  complete_brfss_but_missing_covars <- complete_brfss %>% 
+    filter(is.na(prop_poverty)|is.na(prop_nhw)|is.na(prop_renter)|is.na(ndvi_sd)) %>% 
+    nrow()
+  
+  complete_brfss_but_missing_poverty <- complete_brfss %>% 
+    filter(is.na(prop_poverty)) %>% 
+    nrow()
+  
+  complete_brfss_but_missing_nhw <- complete_brfss %>% 
+    filter(is.na(prop_nhw)) %>% 
+    nrow()
+  
+  complete_brfss_but_missing_renter <- complete_brfss %>% 
+    filter(is.na(prop_renter)) %>% 
+    nrow()
+  
+  complete_brfss_but_missing_ndvi <- complete_brfss %>% 
+    filter(is.na(ndvi_sd)) %>% 
+    nrow()
+  
+  final_sample <- complete_brfss %>% 
+    filter(!is.na(prop_poverty)&!is.na(prop_nhw)&!is.na(prop_renter)&!is.na(ndvi_sd)) %>% 
+    nrow()
+  
+  missing_vars_tbl <- tibble(descrip = c("missing_brfss_19",
+                                         "complete_brfss_but_missing_covars", 
+                                         "complete_brfss_but_missing_poverty",
+                                         "complete_brfss_but_missing_nhw",
+                                         "complete_brfss_but_missing_renter",
+                                         "complete_brfss_but_missing_ndvi",
+                                         "final_sample"),
+                             missing_rows = c(missing_brfss_19, 
+                                            complete_brfss_but_missing_covars,
+                                            complete_brfss_but_missing_poverty, 
+                                            complete_brfss_but_missing_nhw,
+                                            complete_brfss_but_missing_renter,
+                                            complete_brfss_but_missing_ndvi,
+                                            final_sample)
+                             )
+  
+  write.csv(missing_vars_tbl, here("output", "missing_vars_tbl.csv"))
+  
   return(model_tracts)
   
 }

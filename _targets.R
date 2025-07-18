@@ -47,7 +47,7 @@ list(
     get_mmsa(brfss = brfss)
   }),
   tar_target(ndvi_summary, {
-    get_ndvi_summary(sf = mmsa)
+    get_ndvi_summary(sf = mmsa, analysis = "main")
   }),
   tar_target(full_data_overall, {
     get_full_data_overall(brfss = brfss, ndvi_summary = ndvi_summary, mmsa = mmsa)
@@ -83,8 +83,11 @@ list(
     get_tracts_brfss()
   }),
   tar_target(ndvi_summary_tracts, {
-    get_ndvi_summary(sf = tracts_brfss)
+    get_ndvi_summary(sf = tracts_brfss, analysis = "tracts")
   }),
+  # tar_target(ndvi_summary_all_tracts, {
+  #   get_ndvi_summary_all_tracts(sf = tracts_brfss)
+  # }),
   tar_target(model_tracts, {
     get_model_tracts(tracts_brfss = tracts_brfss, ndvi_summary_tracts = ndvi_summary_tracts)
   }),
@@ -93,7 +96,7 @@ list(
     get_table_1(full_data_overall = full_data_overall)
   }),
   tar_target(table_2, {
-    get_table_1(full_data_strat = full_data_strat)
+    get_table_2(full_data_strat = full_data_strat)
   }),
   tar_target(figure_S1, {
     get_figure_S1(mmsa = mmsa)
@@ -105,7 +108,7 @@ list(
     get_figure_S3(full_data_overall = full_data_overall, full_data_strat = full_data_strat)
   }),
   tar_target(table_A1, {
-    get_table_A1(full_data_overall = full_data_overall, full_data_strat = full_data_strat)
+    get_table_S1(full_data_overall = full_data_overall, full_data_strat = full_data_strat)
   }),
   tar_target(table_3, {
     get_table_3(models = models, analysis = "main")
