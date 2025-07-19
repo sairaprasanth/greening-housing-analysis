@@ -104,7 +104,7 @@ list(
   tar_target(figure_S3, {
     get_figure_S3(full_data_overall = full_data_overall, full_data_strat = full_data_strat)
   }),
-  tar_target(table_A1, {
+  tar_target(table_S1, {
     get_table_S1(full_data_overall = full_data_overall, full_data_strat = full_data_strat)
   }),
   tar_target(table_3, {
