@@ -1069,11 +1069,59 @@ get_missing_tbl <- function(brfss, mmsa) {
                                   missing_owner_11, missing_owner_19,
                                   included_unstrat_11, included_unstrat_19,
                                   included_strat_11, included_strat_19))
-  
+
   # save output
   write.csv(missing_tbl, here("output", "missing_or_included_values.csv"))
   
   return(missing_tbl)
+  
+}
+
+get_tenure_tbl <- function(brfss, mmsa) {
+  
+  # summarize respondents by housing tenure stratum
+  homeowners_11 <- brfss[[1]] %>% 
+    filter(MMSA %in% mmsa$MMSA) %>% 
+    filter(RENTHOM1 == 1) %>%
+    nrow()
+  
+  homeowners_19 <- brfss[[2]] %>% 
+    filter(MMSA %in% mmsa$MMSA) %>% 
+    filter(RENTHOM1 == 1) %>%
+    nrow()
+  
+  renters_11 <- brfss[[1]] %>% 
+    filter(MMSA %in% mmsa$MMSA) %>% 
+    filter(RENTHOM1 == 2) %>%
+    nrow()
+  
+  renters_19 <- brfss[[2]] %>% 
+    filter(MMSA %in% mmsa$MMSA) %>% 
+    filter(RENTHOM1 == 2) %>%
+    nrow()
+  
+  other_arrangement_11 <- brfss[[1]] %>% 
+    filter(MMSA %in% mmsa$MMSA) %>% 
+    filter(RENTHOM1 == 3) %>%
+    nrow()
+  
+  other_arrangement_19 <- brfss[[2]] %>% 
+    filter(MMSA %in% mmsa$MMSA) %>% 
+    filter(RENTHOM1 == 3) %>%
+    nrow()
+  
+  # summary tibble for housing tenure
+  tenure_tbl <- tibble(variable = c("homeowners_11", "homeowners_19",
+                                       "renters_11", "renters_19",
+                                       "other_arrangement_11", "other_arrangement_19"),
+                          value = c(homeowners_11, homeowners_19,
+                                    renters_11, renters_19,
+                                    other_arrangement_11, other_arrangement_19))
+  
+  # save output
+  write.csv(tenure_tbl, here("output", "respondents_by_tenure.csv"))
+  
+  return(tenure_tbl)
   
 }
 

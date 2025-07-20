@@ -121,5 +121,8 @@ list(
   }),
   tar_target(missing_tbl, {
     get_missing_tbl(brfss = brfss, mmsa = mmsa)
+  }),
+  tar_target(tenure_tbl, {
+    get_tenure_tbl(brfss = brfss, mmsa = mmsa)
   })
 )
